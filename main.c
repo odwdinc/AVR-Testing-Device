@@ -1,4 +1,3 @@
-// please see http://frank.circleofcurrent.com/index.php?page=hid_tutorial_1
 // the "usb_hid_rpt_desc.hid" file needs to be viewed with the HID Descriptor Tool from USB.org
 
 // required headers
