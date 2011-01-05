@@ -1,0 +1,25 @@
+The AVR testing Dvice
+To Make
+	1)Open Makefile
+	2) set the BURNMCU the the Chip Type
+		ex)BURNMCU = attiny85
+	
+	3) set the BURNPROGRAMMER to the Chip Programer
+		ex)BURNPROGRAMMER = buspirate
+	
+	4) set the PORTPRO the the Chip Programer's Port
+		ex)	PORTPRO = /dev/tty.usbserial-Flashy 	//unix osx 
+			PORTPRO = com3 							//windows
+	
+	5)	windows install Winavr (winavr.sourceforge.net)
+		OSX instal CrossPack (http://www.obdev.at/products/crosspack/index.html)
+		Unix install AVR dev tools (http://www.ladyada.net/learn/avr/setup-unix.html)
+		
+	6) 	windows open CMD and CD to sorce dir.
+		unix & osx open a termanal and cd to sorce dir.
+	
+	7) Run Make
+	
+	8) Run Make burn
+
+	
