@@ -11,7 +11,7 @@ To Make
 		ex)	PORTPRO = /dev/tty.usbserial-Flashy 	//unix osx 
 			PORTPRO = com3 							//windows
 	
-	5)	windows install Winavr (winavr.sourceforge.net)
+	5)	windows install Winavr (http://winavr.sourceforge.net/)
 		OSX instal CrossPack (http://www.obdev.at/products/crosspack/index.html)
 		Unix install AVR dev tools (http://www.ladyada.net/learn/avr/setup-unix.html)
 		
@@ -23,3 +23,15 @@ To Make
 	8) Run Make burn
 
 	
+	
+	
+	***note****per(http://vusb.wikidot.com/troubleshooting)
+	9.- Don't compile for 'P' series chips - There is an issue in the driver where some interrupt tables
+		are named in a way that isn't compatible with chips that have a 'p' after their name - i.e. ATmega168p,
+		ATmega3280. This is tricky, since the code will compile, but just won't work. However,
+		the 'p' series chips are binary compatible with their non-'p' cousins, so if you're working with 
+		an ATmega168p, compile for a regular ATmega168. The ATmega328p has no non-p variant, but it's 
+		binary-compatible with the ATmega168, so compile for the ATmega168. You may also try 
+		defining "USB_INTR_VECTOR" as "INT0_vect" in "usbconfig.h", or replacing "SIG_INTERRUPT0" 
+		with "INT0_vect" in "usbdrvasm.S" (around line 60 in version 20090822). 
+		This problem may have already been fixed in version 20100715.

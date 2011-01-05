@@ -144,82 +144,6 @@ static uint8_t idle_rate = 500 / 4; // see HID1_11.pdf sect 7.2.4
 static uint8_t protocol_version = 0; // see HID1_11.pdf sect 7.2.6
 
 
-
-usbMsgLen_t usbFunctionSetup(uint8_t data[8])
-{
-	// see HID1_11.pdf sect 7.2 and http://vusb.wikidot.com/driver-api
-	usbRequest_t *rq = (void *)data;
-
-	if ((rq->bmRequestType & USBRQ_TYPE_MASK) != USBRQ_TYPE_CLASS)
-		return 0; // ignore request if it's not a class specific request
-
-	// see HID1_11.pdf sect 7.2
-	switch (rq->bRequest)
-	{
-		case USBRQ_HID_GET_IDLE:
-			usbMsgPtr = &idle_rate; // send data starting from this byte
-			return 1; // send 1 byte
-		case USBRQ_HID_SET_IDLE:
-			idle_rate = rq->wValue.bytes[1]; // read in idle rate
-			return 0; // send nothing
-		case USBRQ_HID_GET_PROTOCOL:
-			usbMsgPtr = &protocol_version; // send data starting from this byte
-			return 1; // send 1 byte
-		case USBRQ_HID_SET_PROTOCOL:
-			protocol_version = rq->wValue.bytes[1];
-			return 0; // send nothing
-		case USBRQ_HID_GET_REPORT:
-			// check for report ID then send back report
-			if (rq->wValue.bytes[0] == 1)
-			{
-				usbMsgPtr = &keyboard_report;
-				return sizeof(keyboard_report);
-			}
-			else if (rq->wValue.bytes[0] == 2)
-			{
-				usbMsgPtr = &mouse_report;
-				return sizeof(mouse_report);
-			}
-			else
-			{
-				return 0; // no such report, send nothing
-			}
-		case USBRQ_HID_SET_REPORT: // no "output" or "feature" implemented, so ignore
-		if (rq->wValue.bytes[0] == 1){
-				return USB_NO_MSG; // send nothing but call usbFunctionWrite	
-			}else{
-				
-			return 0; // send nothing
-			}
-		default: // do not understand data, ignore
-			return 0; // send nothing
-	}
-}
-static uint8_t LED_state = 0; // see HID1_11.pdf appendix B section 1
-int blink_count = 0; // keep track of how many times caps lock have toggled
-
-usbMsgLen_t usbFunctionWrite(uint8_t * data, uchar len)
-{	 		
-
-	if (data[1] != LED_state)
-	{
-		// increment count when LED has toggled
-		
-		LED_state = data[1];
-		
-		
-		if (bit_is_set(LED_state, 1))
-		{
-			sbi(PORTB, YELLOW_LED);
-			blink_count++;
-		}
-		else
-		{
-			cbi(PORTB, YELLOW_LED);
-		}
-	}
-	return 1;             // return 1 if we have all data
-}
 /* ------------------------------------------------------------------------- */
 /* ------------------------ Oscillator Calibration ------------------------- */
 /* ------------------------------------------------------------------------- */
@@ -275,6 +199,102 @@ ATTiny25, ATTiny45, ATTiny85), it may be useful to search for the optimum in
 both regions.
 */
 
+
+
+
+
+
+
+
+
+
+//-----------------------USB--------------------------//
+//----------------------------------------------------//
+usbMsgLen_t usbFunctionSetup(uint8_t data[8])
+{
+	// see HID1_11.pdf sect 7.2 and http://vusb.wikidot.com/driver-api
+	usbRequest_t *rq = (void *)data;
+
+	if ((rq->bmRequestType & USBRQ_TYPE_MASK) != USBRQ_TYPE_CLASS)
+		return 0; // ignore request if it's not a class specific request
+
+	// see HID1_11.pdf sect 7.2
+	switch (rq->bRequest)
+	{
+		case USBRQ_HID_GET_IDLE:
+			usbMsgPtr = &idle_rate; // send data starting from this byte
+			return 1; // send 1 byte
+		case USBRQ_HID_SET_IDLE:
+			idle_rate = rq->wValue.bytes[1]; // read in idle rate
+			return 0; // send nothing
+		case USBRQ_HID_GET_PROTOCOL:
+			usbMsgPtr = &protocol_version; // send data starting from this byte
+			return 1; // send 1 byte
+		case USBRQ_HID_SET_PROTOCOL:
+			protocol_version = rq->wValue.bytes[1];
+			return 0; // send nothing
+		case USBRQ_HID_GET_REPORT:
+			// check for report ID then send back report
+			if (rq->wValue.bytes[0] == 1)
+			{
+				usbMsgPtr = &keyboard_report;
+				return sizeof(keyboard_report);
+			}
+			else if (rq->wValue.bytes[0] == 2)
+			{
+				usbMsgPtr = &mouse_report;
+				return sizeof(mouse_report);
+			}
+			else
+			{
+				return 0; // no such report, send nothing
+			}
+		case USBRQ_HID_SET_REPORT: // no "output" or "feature" implemented, so ignore
+		if (rq->wValue.bytes[0] == 1){
+				return USB_NO_MSG; // send nothing but call usbFunctionWrite	
+			}else{
+				
+			return 0; // send nothing
+			}
+		default: // do not understand data, ignore
+			return 0; // send nothing
+	}
+}
+
+static uint8_t LED_state = 0; // see HID1_11.pdf appendix B section 1
+int blink_count = 0; // keep track of how many times caps lock have toggled
+
+usbMsgLen_t usbFunctionWrite(uint8_t * data, uchar len)
+{	 		
+
+	if (data[1] != LED_state)
+	{
+		// increment count when LED has toggled
+		
+		LED_state = data[1];
+		
+		
+		if (bit_is_set(LED_state, 1))
+		{
+			sbi(PORTB, YELLOW_LED);
+			blink_count++;
+		}
+		else
+		{
+			cbi(PORTB, YELLOW_LED);
+		}
+	}
+	return 1;             // return 1 if we have all data
+}
+
+
+usbMsgLen_t usbFunctionRead(uint8_t * data, uchar len)
+{	 		
+	return 1;             // return 1 if we have all data
+}
+
+
+
 void    usbEventResetReady(void)
 {
     calibrateOscillator();
@@ -294,15 +314,40 @@ void usbSendHidReport(uchar * data, uchar len)
 		}
 	}
 }
+//----------------------------------------------------//
+//----------------------------------------------------//
+
+
+
+
+
+
+//---------------------ADC----------------------------//
+//----------------------------------------------------//
+static uchar    adcPending;
+static uint8_t    adcmodepool;
+
+static void adcPoll()
+{
+	if (adcmodepool==1){
+    	if(adcPending && !(ADCSRA & (1 << ADSC))){
+			adcPending = 0;
+			printf ("ADC = %d \n",ADC);
+    	}
+	}	
+}
+//----------------------------------------------------//
+//----------------------------------------------------//
+
+
+
+
 
 
 //-------------Keyboad---------------------------------//
 //----------------------------------------------------//
 //----------------------------------------------------//
-//----------------------------------------------------//
-//----------------------------------------------------//
-//----------------------------------------------------//
-//----------------------------------------------------//
+
 void send_report_once()
 {
   usbSendHidReport(&keyboard_report, sizeof(keyboard_report));
@@ -511,40 +556,60 @@ void ASCII_to_keycode(uint8_t ascii)
 }
 //----------------------------------------------------//
 //----------------------------------------------------//
-//----------------------------------------------------//
-//----------------------------------------------------//
-//----------------------------------------------------//
 
+static void timerPoll(void)
+{
+static uchar timerCnt;
+
+    if(TIFR & (1 << TOV1)){	//This flag is triggered at 60 hz.
+        TIFR = (1 << TOV1); /* clear overflow */
+		if(++timerCnt >= 31){		 /* ~ 0.5 second interval */
+            timerCnt = 0;
+			adcPending = 1;
+			ADCSRA |= (1 << ADSC);  /* start next conversion */
+		}
+	}
+}
 
 
 
 //---------------------Mouse--------------------------//
 //----------------------------------------------------//
-//----------------------------------------------------//
-//----------------------------------------------------//
-//----------------------------------------------------//
+
 
 void mouse_report_once()
 {
-  usbSendHidReport(&mouse_report, sizeof(mouse_report));
+	usbPoll();
+  	usbSendHidReport(&mouse_report, sizeof(mouse_report));
 }
 
-void mouse_move(int8_t x,int8_t y){
+void mouse_move(int8_t x,int8_t y,uint8_t speed ){
 	int i;
   
 	if (x>0){
     for(i=0;i<x;i++){  /* 300 ms disconnect */
-        mouse_report.x=5;
+        mouse_report.x=speed;
         mouse_report_once();
-        usbPoll();
     }
    }
    else
    {
       for(i=x;i<0;i++){  /* 300 ms disconnect */
-        mouse_report.x=-5;
+        mouse_report.x=(-1*speed);
         mouse_report_once();
-        usbPoll();
+      }
+   }
+   if (y>0){
+    for(i=0;i<y;i++){  /* 300 ms disconnect */
+        mouse_report.y=speed;
+        mouse_report_once();
+    }
+   }
+   else
+   {
+      for(i=y;i<0;i++){  /* 300 ms disconnect */
+        mouse_report.y=(-1*speed);
+        mouse_report_once();
       }
    }
    
@@ -584,33 +649,39 @@ static void Poll(void)
 	sbi(PORTB, WHITE_LED);
 	switch (poolcout++)
       {
-         case 1:
+         case 2:
 			addDigit(0,0);
 			addDigit(21,MOD_GUI_RIGHT);
 			addDigit(0,0);
 			break;
-		case 2:
+		case 3:
 			puts_P(PSTR("notepad.exe"));
 			break;
-		case 3:
-			puts_P(PSTR("+------------------+"));
-			puts_P(PSTR("¦   Hello World    ¦"));
-			puts_P(PSTR("¦------------------¦"));
-      		puts_P(PSTR("¦ (1) USB Keyboad  ¦"));
-      		puts_P(PSTR("¦------------------¦"));
-      		puts_P(PSTR("¦ (2) USB MOuse    ¦"));
-      		puts_P(PSTR("+------------------+"));
-			break;
 		case 4:
-			mouse_move(50,0);
+			puts_P(PSTR("+--------------------+"));
+			puts_P(PSTR("¦ USB Testing Device ¦"));
+			puts_P(PSTR("¦--------------------¦"));
+      		puts_P(PSTR("¦  (1) USB Keyboad   ¦"));
+      		puts_P(PSTR("¦--------------------¦"));
+      		puts_P(PSTR("¦  (2) USB Mouse     ¦"));
+      		puts_P(PSTR("+--------------------+"));
 			break;
 		case 5:
-			mouse_move(-50,0);
+			mouse_move(50,0,10);
 			break;
 		case 6:
-			addDigit(76,20); //ctrl+alt+delt
+			mouse_move(-50,20,5);
 			break;
 		case 7:
+			//addDigit(76,20); //ctrl+alt+delt	
+			puts_P(PSTR("ADC Meater Mode on"));
+			adcmodepool =1;
+			break;
+		case 7:
+			puts_P(PSTR("ADC Meater Mode off"));
+			adcmodepool=0;
+			break;
+		case 8:
 			poolcout=0;
 			break;
       }
@@ -630,13 +701,17 @@ int main()
 int i;
 	wdt_disable(); // no watchdog, just because I'm lazy
 	stdout = &mystdout; // set default stream
-	DDRB |= 1 << WHITE_LED;
 	
-	DDRB &= ~(1<<DDB4);
-	DDRB &= ~(1<<DDB3);
+	DDRB |= (1 << WHITE_LED) | (0 << 3)| (0 << 4);   //0 = input, 1 = output,WHITE_LED is output PB3 is input, PB4 is input 
+	PORTB |= 1<<DDB3 | 1<<DDB4;
 	
-	PORTB |= 1<<DDB3;
-	PORTB |= 1<<DDB4;
+	ADCSRA |= (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0); //ADC Prescalar set to 64 - 125kHz@8MHz 
+	ADMUX |= (0 << REFS0) | (0 << REFS1);      //Sets ref. voltage to VCC +5v 
+	
+	ADMUX |= (0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (1 << MUX0);   //Selects channel ADC2 (PB4) with 1x Gain 
+	ADCSRA = UTIL_BIN8(1000, 0111); /* enable ADC, not free running, interrupt disable, rate = 1/128 */
+	
+	TCCR1 = 0x0b;           /* select clock: 16.5M/1k -> overflow rate = 16.5M/256k = 62.94 Hz */
 	
 	sbi(PORTB, WHITE_LED);
     for(i=0;i<20;i++){  /* 300 ms disconnect */
@@ -660,13 +735,14 @@ int i;
 		keyboard_report.report_id = 1;
 		mouse_report.report_id = 2;
 
-		if(blink_count > 2){
+		if(blink_count == 1){
 			Poll();
-			blink_count =0;
+			blink_count = 0;
 		}
 		usbPoll();
 		inputPoll();
-		
+		timerPoll();
+		adcPoll();
 	}
 	
 	return 0;
