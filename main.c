@@ -49,8 +49,8 @@
 #define NULL    ((void *)0)
 #endif
 
-#define clock (PINB & (1<<PINB4))
-#define clockbit (PINB & (1<<PINB3))
+#define clock !(PINB & (1<<PINB4))
+#define clockbit !(PINB & (1<<PINB3))
 
 PROGMEM char usbHidReportDescriptor[USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH] = {
     0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
@@ -557,7 +557,83 @@ void ASCII_to_keycode(uint8_t ascii)
 //----------------------------------------------------//
 //----------------------------------------------------//
 
-static void timerPoll(void)
+//simple bitbang input
+//time is started at 0 ms and counts to 11 is counting at 60hz
+//~700ms per message gives is 2 bitpersec not fast but we are seding key and mouse data...
+//+-------------------------------------------+----------+
+//| 0-50ms | 51-100ms | 101-133ms | 134-166ms |   183ms  |
+//+-------------------------------------------+----------|
+//|    0   |     1    |   start   |    end    | overflow |
+//+-------------------------------------------+----------|
+//bitbag_mode = ...
+// stop_con 		disables bitbag
+// enabled_con 		enable bitbang
+// start_con 		in a bitbag message	
+// byte_flag 		recived a bitbag message
+//bitbagPoll();		pool for bitbang needs to be called atleas eaery 1ms
+//bitbag_data		the byte recived form bitbag message
+
+#define stop_con 4
+#define start_con 5
+#define byte_flag 6
+#define enabled_con 0
+static uchar bitbag_data;
+static uchar bitbag_mode;
+	
+static void bitbagPoll(void){
+	
+	static uchar timerCnt;
+	static int8_t bitnum;
+	
+	
+	if(TIFR & (1 << TOV1)){	//This flag is triggered at 60 hz. 
+		TIFR = (1 << TOV1); /* clear overflow */
+		
+		if(clock)					// if the clockbit is pulled down we start counting.
+		{
+			if(++timerCnt >= 11){  // if no dection is seen in 11 cycels we reset for next message
+				timerCnt = 0;
+				printf("ov,");
+			}   
+		}
+		else if(timerCnt > 0) 																	// if the clockbit is let up we see how lon it has been.
+		{  		
+			if (timerCnt <= 3 && bitbag_mode == start_con)  									//if timer counter is in the 0 range and we have recived a start message
+			{
+				if(++bitnum <= 8){																//get ready for bit
+					cbi(bitbag_data,bitnum);													//clear the curent bit
+					printf("0");
+				}														
+																						
+			}
+			else if (timerCnt >3 && timerCnt <= 6 && bitbag_mode == start_con)					//if timer counter is in the 1 range and we have recived a start message
+			{	
+				if(++bitnum <= 8){																//get ready for bit
+					sbi(bitbag_data,bitnum);													//set the curent bit
+					printf("1");
+				}																	
+			}
+			else if (timerCnt >6 && timerCnt <= 8 && bitbag_mode == enabled_con)				//if timer counter is in the start range and we have cleard any byte flags.
+			{
+				bitbag_mode = start_con;														//set the start contution
+				bitnum = -1;
+				printf("start,");			
+			}
+			else if (timerCnt >8 && timerCnt <= 10 && bitbag_mode == start_con && bitnum >=8)	//if timer counter is in the stop range and we have recived a start message,
+			{																					// and at least 8 bits messages
+				bitbag_mode = byte_flag;														//set the byte flag
+				printf(",Byte ");
+			}
+			timerCnt = 0;																		//get ready for next message
+		}	
+	}
+		
+}
+
+
+
+
+static void adc_timer_Poll(void)
 {
 static uchar timerCnt;
 
@@ -629,7 +705,7 @@ void inputPoll()
 	if (clockstate != clock)
 	{
 		clockstate = clock;
-		if (!clock){
+		if (clock){
 			sbi(PORTB, YELLOW_LED);
 			blink_count++;
 		}
@@ -644,47 +720,77 @@ void inputPoll()
 //----------------------------------------------------//
 //----------------------------------------------------//
 int poolcout;
+int bootrun = 1;
 static void Poll(void)
 {
 	sbi(PORTB, WHITE_LED);
-	switch (poolcout++)
-      {
-         case 2:
-			addDigit(0,0);
-			addDigit(21,MOD_GUI_RIGHT);
-			addDigit(0,0);
-			break;
-		case 3:
-			puts_P(PSTR("notepad.exe"));
-			break;
-		case 4:
-			puts_P(PSTR("+--------------------+"));
-			puts_P(PSTR("¦ USB Testing Device ¦"));
-			puts_P(PSTR("¦--------------------¦"));
-      		puts_P(PSTR("¦  (1) USB Keyboad   ¦"));
-      		puts_P(PSTR("¦--------------------¦"));
-      		puts_P(PSTR("¦  (2) USB Mouse     ¦"));
-      		puts_P(PSTR("+--------------------+"));
-			break;
-		case 5:
-			mouse_move(50,0,10);
-			break;
-		case 6:
-			mouse_move(-50,20,5);
-			break;
-		case 7:
-			//addDigit(76,20); //ctrl+alt+delt	
-			puts_P(PSTR("ADC Meater Mode on"));
-			adcmodepool =1;
-			break;
-		case 7:
-			puts_P(PSTR("ADC Meater Mode off"));
-			adcmodepool=0;
-			break;
-		case 8:
-			poolcout=0;
-			break;
-      }
+	
+	if (bootrun){
+		
+		switch (poolcout++)
+	      {
+	         case 2:
+				addDigit(0,0);
+				//addDigit(21,MOD_GUI_RIGHT);
+				addDigit(0,0);
+				break;
+			case 3:
+				puts_P(PSTR("notepad.exe"));
+				break;
+			case 4:
+				puts_P(PSTR("+--------------------+"));
+				puts_P(PSTR("| USB Testing Device |"));
+				puts_P(PSTR("|--------------------|"));
+	      		puts_P(PSTR("|  (1) USB Keyboad   |"));
+	      		puts_P(PSTR("|--------------------|"));
+	      		puts_P(PSTR("|  (2) USB Mouse     |"));
+	      		puts_P(PSTR("+--------------------+"));
+				break;
+			case 5:
+				puts_P(PSTR("Mouse move x=50 y=0 speed 10"));
+				mouse_move(50,0,10);
+				break;
+			case 6:
+				puts_P(PSTR("Mouse move x=-50 y=20 speed 5"));
+				mouse_move(-50,20,5);
+				break;
+			case 7:
+				//addDigit(76,20); //ctrl+alt+delt	
+				puts_P(PSTR("ADC Meater Mode on"));
+				adcmodepool=1;
+				break;
+			case 8:
+				puts_P(PSTR("ADC Meater Mode off"));
+				adcmodepool=0;
+				break;
+			case 9:
+				puts_P(PSTR("BitBang Mode On"));
+				bitbag_mode = enabled_con; //enable bitbang
+				
+			case 11:
+				//bitbag_mode = stop_con; //disables bitbag
+				//puts_P(PSTR("BitBang Mode Off"));
+				//puts_P(PSTR("Demo over\n ADC Meatering ACTIVE..."));
+				//poolcout=0;
+				//bootrun=0;
+				break;
+	      }
+	}
+	else
+	{
+	      	switch (poolcout++)
+	      	{
+	      		
+	      	case 0:
+				//addDigit(76,20); //ctrl+alt+delt	
+				adcmodepool =1;
+				break;
+			case 1:
+				adcmodepool=0;
+				poolcout=0;
+				break;
+	      }
+	}
 	
 
 	cbi(PORTB, WHITE_LED);
@@ -705,13 +811,15 @@ int i;
 	DDRB |= (1 << WHITE_LED) | (0 << 3)| (0 << 4);   //0 = input, 1 = output,WHITE_LED is output PB3 is input, PB4 is input 
 	PORTB |= 1<<DDB3 | 1<<DDB4;
 	
-	ADCSRA |= (1 << ADPS2) | (1 << ADPS1) | (0 << ADPS0); //ADC Prescalar set to 64 - 125kHz@8MHz 
-	ADMUX |= (0 << REFS0) | (0 << REFS1);      //Sets ref. voltage to VCC +5v 
+		
+	ADCSRA = UTIL_BIN8(1000, 0111); 					// enable ADC, not free running, interrupt disable, rate = 1/128
+	//+-----------------------------------------------+
 	
-	ADMUX |= (0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (1 << MUX0);   //Selects channel ADC2 (PB4) with 1x Gain 
-	ADCSRA = UTIL_BIN8(1000, 0111); /* enable ADC, not free running, interrupt disable, rate = 1/128 */
-	
-	TCCR1 = 0x0b;           /* select clock: 16.5M/1k -> overflow rate = 16.5M/256k = 62.94 Hz */
+
+	ADMUX = UTIL_BIN8(1000, 0011);						//Internal 1.1V Voltage Reference, Right adjust the result, Single Ended Input ADC3 (PB3) 
+	//+-----------------------------------------------+
+
+	TCCR1 = UTIL_BIN8(0000, 1011);           // select clock: 16.5M/1k -> overflow rate = 16.5M/256k = 62.94 Hz 
 	
 	sbi(PORTB, WHITE_LED);
     for(i=0;i<20;i++){  /* 300 ms disconnect */
@@ -728,20 +836,36 @@ int i;
   usbDeviceDisconnect(); // enforce USB re-enumeration, do this while interrupts are disabled!
 	_delay_ms(250);
   usbDeviceConnect();
+  
+  bitbag_mode = stop_con; // disable bitbang
+  
   usbInit(); // start v-usb
   sei(); // enable interrupts	
 	for(;;){
 		// set the report IDs manually
 		keyboard_report.report_id = 1;
 		mouse_report.report_id = 2;
-
 		if(blink_count == 1){
-			Poll();
 			blink_count = 0;
+			Poll();
 		}
-		usbPoll();
+		
 		inputPoll();
-		timerPoll();
+		
+		usbPoll();
+		if (bitbag_mode != stop_con){
+			bitbagPoll();
+			if (bitbag_mode == byte_flag){
+				printf ("Bitbang recived = %d \n",bitbag_data);
+				bitbag_mode=enabled_con;
+			}	
+		}
+		else
+		{
+			adc_timer_Poll();
+		}
+		
+		usbPoll();
 		adcPoll();
 	}
 	
