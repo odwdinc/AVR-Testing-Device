@@ -573,63 +573,48 @@ void ASCII_to_keycode(uint8_t ascii)
 //bitbagPoll();		pool for bitbang needs to be called atleas eaery 1ms
 //bitbag_data		the byte recived form bitbag message
 
-#define byte_flag 2
-#define enabled_con 1
+#define stop_con -1
+#define byte_flag 1
+#define enabled_con 0
 static uchar bitbag_data;
 static uchar bitbag_mode;
 	
 static void bitbagPoll(void){
+	
+	static uchar timerCnt;
 	static int8_t bitnum;
-	static uchar  nextclock;
-	static uchar  strtbyte;
-	static uchar inbyte;
+	static int8_tnextbit;
 	
 	if(TIFR & (1 << TOV1)){	//This flag is triggered at 60 hz. 
 		TIFR = (1 << TOV1); /* clear overflow */
 		
-		if(clock && nextclock == 1)									// if the clockbit is pulled down we clock in.
+		if(clock && nextbit)									// if the clockbit is pulled down we clock in.
 		{
-			nextclock = 0;
-			strtbyte = clockbit;
-			if (inbyte == 1)
+			nextbit =0;	
+			if(!(PINB & (1<<PINB3)))
 			{
-				if(!(PINB & (1<<PINB3)))
-				{
-					if(++bitnum <= 7)
-					{								//get ready for bit
-						cbi(bitbag_data,bitnum);					//clear the curent bit
-						//printf("0");
-					}else{
-						bitnum = -1;
-						inbyte = 0;		
-						bitbag_mode = byte_flag;
-						//printf("\n");
-					}
-				}
-				else
-				{
-					if(++bitnum <= 7){								//get ready for bit
-						sbi(bitbag_data,bitnum);					//set the curent bit
-						//printf("1");
-					}else{
-						bitnum = -1;
-						inbyte = 0;		
-						bitbag_mode = byte_flag;
-						//printf("\n");
-					}
+				if(++bitnum <= 7){								//get ready for bit
+					cbi(bitbag_data,bitnum);					//clear the curent bit
 				}
 			}
-		}
-		if (clock && nextclock == 0){			//toggle of the clockbit line wile the clock is pulled low.
-			if (clockbit != strtbyte){
-				inbyte =1;
+			else
+			{
+				if(++bitnum <= 7){								//get ready for bit
+					sbi(bitbag_data,bitnum);					//set the curent bit
+				}
 			}
-		}
-		
-		if(!(clock) && nextclock == 0){
-			nextclock=1;			//get ready for next message
-		}
-		
+				
+		}	
+	
+																		
+																						
+			
+																
+
+				bitbag_mode = byte_flag;
+			}
+			timerCnt = 0;																		//get ready for next message
+		}	
 	}
 		
 }
@@ -773,7 +758,7 @@ static void Poll(void)
 			case 9:
 				puts_P(PSTR("BitBang Mode On"));
 				bitbag_mode = enabled_con; //enable bitbang
-				break;
+				
 			case 11:
 				//bitbag_mode = stop_con; //disables bitbag
 				//puts_P(PSTR("BitBang Mode Off"));
@@ -844,7 +829,7 @@ int i;
 	_delay_ms(250);
   usbDeviceConnect();
   
-  bitbag_mode = 0; // disable bitbang
+  bitbag_mode = stop_con; // disable bitbang
   
   usbInit(); // start v-usb
   sei(); // enable interrupts	
@@ -860,16 +845,16 @@ int i;
 		inputPoll();
 		
 		usbPoll();
-		if (bitbag_mode == enabled_con){
+		if (bitbag_mode != stop_con){
 			bitbagPoll();
 			if (bitbag_mode == byte_flag){
 				ASCII_to_keycode(bitbag_data);
 				bitbag_mode=enabled_con;
-			}
+			}	
 		}
 		else
 		{
-			adc_timer_Poll();	
+			adc_timer_Poll();
 		}
 		
 		usbPoll();
